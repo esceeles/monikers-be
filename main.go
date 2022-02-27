@@ -9,7 +9,8 @@ import (
 )
 
 func main() {
-	handleRequests()
+	http.HandleFunc("/createGame", createGame)
+	http.HandleFunc("/joinGame", joinGame)
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		return
@@ -36,21 +37,6 @@ func withMessage(message string) interface{} {
 	return resp
 }
 
-func handleRequests() {
-	http.HandleFunc("/createGame", createGame)
-	http.HandleFunc("/joinGame", joinGame)
-	log.Fatal(http.ListenAndServe(":10000", nil))
-}
-
-type startGameRequest struct {
-	hostName string
-}
-
-type joinGameRequest struct {
-	name     string
-	joinCode string
-}
-
 type startGameResponse struct {
 	hostHand []int
 	joinCode string
@@ -63,18 +49,13 @@ type joinGameResponse struct {
 func createGame(w http.ResponseWriter, r *http.Request) {
 	//shuffles and stores the deck in the database with the generated idCode and host userName for scoring
 
-	var request startGameRequest
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.UseNumber()
-	decoder.DisallowUnknownFields()
-
-	err := decoder.Decode(&request)
-	if err != nil {
-		respond(w, http.StatusBadRequest, withMessage(fmt.Sprintf("error unmarshalling request:%v", err)))
+	hostName, ok := r.URL.Query()["hostName"]
+	if !ok || len(hostName[0]) < 1 {
+		log.Println("Url Param 'key' is missing")
+		return
 	}
 
-	hostHand, joinCode, err := deck.CreateGame(request.hostName)
+	hostHand, joinCode, err := deck.CreateGame(hostName[0])
 	if err != nil {
 		respond(w, http.StatusBadRequest, withMessage(fmt.Sprintf("error creating game: %v", err)))
 	}
@@ -90,18 +71,19 @@ func createGame(w http.ResponseWriter, r *http.Request) {
 func joinGame(w http.ResponseWriter, r *http.Request) {
 	//get your cards from the deck and add your username to database for scoring
 
-	var request joinGameRequest
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.UseNumber()
-	decoder.DisallowUnknownFields()
-
-	err := decoder.Decode(&request)
-	if err != nil {
-		respond(w, http.StatusBadRequest, withMessage(fmt.Sprintf("error unmarshalling request:%v", err)))
+	name, ok := r.URL.Query()["name"]
+	if !ok || len(name[0]) < 1 {
+		log.Println("Url Param 'key' is missing")
+		return
 	}
 
-	hand, err := deck.JoinGame(request.name, request.joinCode)
+	joinCode, ok := r.URL.Query()["joinCode"]
+	if !ok || len(joinCode[0]) < 1 {
+		log.Println("Url Param 'key' is missing")
+		return
+	}
+	
+	hand, err := deck.JoinGame(name[0], joinCode[0])
 	if err != nil {
 		respond(w, http.StatusBadRequest, withMessage(fmt.Sprintf("error joining game: %v", err)))
 	}
